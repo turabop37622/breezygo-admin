@@ -339,6 +339,15 @@ app.post('/api/admin/orders', async (req, res) => {
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
+// Delete ALL orders
+app.delete('/api/admin/orders', async (req, res) => {
+  try {
+    const database = await connectDB();
+    await database.collection("orders").deleteMany({});
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
 app.delete('/api/admin/orders/:id', async (req, res) => {
   try {
     const database = await connectDB();

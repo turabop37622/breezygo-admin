@@ -37,6 +37,16 @@ export default function Orders() {
     } catch { toast.error("Failed to delete."); }
   };
 
+  const handleClearAll = async () => {
+    if (!confirm("Are you sure you want to delete ALL orders? This cannot be undone!")) return;
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:5000";
+      await axios.delete(`${backendUrl}/api/admin/orders`);
+      toast.success("All orders deleted!");
+      fetchOrders();
+    } catch { toast.error("Failed to delete all orders."); }
+  };
+
   const filtered = orders.filter(o =>
     o.customer.toLowerCase().includes(search.toLowerCase()) ||
     o.phone.includes(search) ||
@@ -118,14 +128,25 @@ export default function Orders() {
           <h1 className="text-2xl lg:text-3xl font-bold text-slate-900">Orders ({orders.length})</h1>
           <p className="text-slate-500 mt-1">Manage customer orders.</p>
         </div>
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-          <input
-            placeholder="Search by name, phone, city..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 bg-white text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
-          />
+        <div className="flex items-center gap-3">
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+            <input
+              placeholder="Search by name, phone, city..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full h-10 pl-10 pr-4 rounded-xl border border-slate-200 bg-white text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
+            />
+          </div>
+          {orders.length > 0 && (
+            <button
+              onClick={handleClearAll}
+              className="flex items-center gap-2 h-10 px-4 bg-red-500 hover:bg-red-600 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm whitespace-nowrap"
+            >
+              <Trash2 size={16} />
+              Clear All
+            </button>
+          )}
         </div>
       </div>
 
