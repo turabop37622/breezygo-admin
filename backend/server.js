@@ -15,6 +15,8 @@ app.use(express.json());
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017";
 const DB_NAME = process.env.DB_NAME || "breezygo";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "breezy2026";
+const BREVO_API_KEY = process.env.BREVO_API_KEY;
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "turabop37622@gmail.com";
 const client = new MongoClient(MONGODB_URI);
 
 let db;
@@ -26,6 +28,112 @@ async function connectDB() {
     console.log(`Connected to MongoDB (${DB_NAME})!`);
   }
   return db;
+}
+
+async function sendOrderEmail(order) {
+  try {
+    await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": BREVO_API_KEY
+      },
+      body: JSON.stringify({
+        sender: { name: "BreezyGo Store", email: "turabop37622@gmail.com" },
+        to: [{ email: ADMIN_EMAIL }],
+        subject: `🛒 New Order - Rs ${order.total_amount.toLocaleString()} - ${order.customer_name}`,
+        htmlContent: `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f4f4;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+        <tr>
+          <td style="background:linear-gradient(135deg,#10b981,#059669);padding:40px 40px 30px;text-align:center;">
+            <h1 style="margin:0;color:#ffffff;font-size:28px;font-weight:800;letter-spacing:-0.5px;">🛒 BreezyGo</h1>
+            <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Premium Lifestyle Tech</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#ecfdf5;padding:20px 40px;border-bottom:2px solid #d1fae5;">
+            <p style="margin:0;color:#065f46;font-size:16px;font-weight:700;text-align:center;">🎉 New Order Received!</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:40px;">
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:12px;padding:20px;margin-bottom:24px;">
+              <tr>
+                <td>
+                  <p style="margin:0 0 4px;color:#6b7280;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:1px;">Order ID</p>
+                  <p style="margin:0;color:#111827;font-size:16px;font-weight:700;font-family:monospace;">#${order.id.slice(-8).toUpperCase()}</p>
+                </td>
+                <td align="right">
+                  <span style="background:#10b981;color:#fff;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700;text-transform:uppercase;">PENDING</span>
+                </td>
+              </tr>
+            </table>
+            <h3 style="margin:0 0 16px;color:#111827;font-size:16px;font-weight:700;border-bottom:2px solid #f3f4f6;padding-bottom:12px;">👤 Customer Details</h3>
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+              <tr>
+                <td width="50%" style="padding:8px 0;">
+                  <p style="margin:0;color:#6b7280;font-size:12px;font-weight:600;text-transform:uppercase;">Name</p>
+                  <p style="margin:4px 0 0;color:#111827;font-size:15px;font-weight:600;">${order.customer_name}</p>
+                </td>
+                <td width="50%" style="padding:8px 0;">
+                  <p style="margin:0;color:#6b7280;font-size:12px;font-weight:600;text-transform:uppercase;">Phone</p>
+                  <p style="margin:4px 0 0;color:#111827;font-size:15px;font-weight:600;">${order.phone}</p>
+                </td>
+              </tr>
+              <tr>
+                <td colspan="2" style="padding:8px 0;">
+                  <p style="margin:0;color:#6b7280;font-size:12px;font-weight:600;text-transform:uppercase;">Delivery Address</p>
+                  <p style="margin:4px 0 0;color:#111827;font-size:15px;font-weight:600;">${order.address}, ${order.city}</p>
+                </td>
+              </tr>
+            </table>
+            <h3 style="margin:0 0 16px;color:#111827;font-size:16px;font-weight:700;border-bottom:2px solid #f3f4f6;padding-bottom:12px;">📦 Order Items</h3>
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+              ${order.items.map(i => `
+              <tr>
+                <td style="padding:12px 0;border-bottom:1px solid #f3f4f6;">
+                  <p style="margin:0;color:#111827;font-size:15px;font-weight:600;">${i.name}</p>
+                  <p style="margin:4px 0 0;color:#6b7280;font-size:13px;">Qty: ${i.quantity} × Rs ${i.price.toLocaleString()}</p>
+                </td>
+                <td align="right" style="padding:12px 0;border-bottom:1px solid #f3f4f6;">
+                  <p style="margin:0;color:#10b981;font-size:15px;font-weight:700;">Rs ${i.line_total.toLocaleString()}</p>
+                </td>
+              </tr>`).join('')}
+            </table>
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:linear-gradient(135deg,#10b981,#059669);border-radius:12px;padding:20px;">
+              <tr>
+                <td>
+                  <p style="margin:0;color:rgba(255,255,255,0.85);font-size:14px;font-weight:600;">Total Amount (COD)</p>
+                </td>
+                <td align="right">
+                  <p style="margin:0;color:#ffffff;font-size:24px;font-weight:800;">Rs ${order.total_amount.toLocaleString()}</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#f9fafb;padding:24px 40px;text-align:center;border-top:1px solid #e5e7eb;">
+            <p style="margin:0;color:#6b7280;font-size:13px;">This is an automated notification from <strong>BreezyGo Store</strong></p>
+            <p style="margin:8px 0 0;color:#9ca3af;font-size:12px;">${new Date().toLocaleString('en-PK', { timeZone: 'Asia/Karachi' })}</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+      })
+    });
+    console.log("Order email sent!");
+  } catch (err) {
+    console.error("Email send error:", err);
+  }
 }
 
 // ─── AUTH ──────────────────────────────────────────
@@ -93,7 +201,6 @@ app.post('/api/orders', async (req, res) => {
 
     const { ObjectId } = await import('mongodb');
 
-    // Re-price from DB
     const objectIds = items.map(i => new ObjectId(i.product_id));
     const dbProducts = await database.collection("products")
       .find({ _id: { $in: objectIds }, is_active: true })
@@ -133,27 +240,26 @@ app.post('/api/orders', async (req, res) => {
       total_amount, status: 'pending', created_at: new Date()
     });
 
+    await sendOrderEmail({
+      id: result.insertedId.toString(),
+      customer_name, phone, city, address,
+      items: trustedItems,
+      total_amount
+    });
+
     res.json({ success: true, id: result.insertedId.toString(), total_amount });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 // ─── PUBLIC ORDER TRACK ───────────────────────────
-app.get('/api/orders/track/:id', async (req, res) => {   // ← sirf yeh line badlo
+app.get('/api/orders/track/:id', async (req, res) => {
   try {
     const database = await connectDB();
-
     if (!ObjectId.isValid(req.params.id)) {
       return res.status(400).json({ error: 'Invalid Order ID' });
     }
-
-    const order = await database.collection("orders").findOne({
-      _id: new ObjectId(req.params.id)
-    });
-
-    if (!order) {
-      return res.status(404).json({ error: 'Order not found' });
-    }
-
+    const order = await database.collection("orders").findOne({ _id: new ObjectId(req.params.id) });
+    if (!order) return res.status(404).json({ error: 'Order not found' });
     res.json({
       id: order._id.toString(),
       status: order.status || 'pending',
@@ -166,10 +272,37 @@ app.get('/api/orders/track/:id', async (req, res) => {   // ← sirf yeh line ba
       city: order.city,
       items: order.items || []
     });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
 
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+// ─── STATS ────────────────────────────────────────
+app.get('/api/admin/stats', async (req, res) => {
+  try {
+    const database = await connectDB();
+    const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
+    const [totalOrders, totalProducts, totalMessages, revenueData, todayOrders, todayRevenue] = await Promise.all([
+      database.collection("orders").countDocuments(),
+      database.collection("products").countDocuments(),
+      database.collection("contact_messages").countDocuments(),
+      database.collection("orders").aggregate([{ $group: { _id: null, total: { $sum: "$total_amount" } } }]).toArray(),
+      database.collection("orders").countDocuments({ created_at: { $gte: todayStart } }),
+      database.collection("orders").aggregate([{ $match: { created_at: { $gte: todayStart } } }, { $group: { _id: null, total: { $sum: "$total_amount" } } }]).toArray()
+    ]);
+    const recentOrders = await database.collection("orders").find().sort({ created_at: -1 }).limit(5).project({ _id: 1, customer_name: 1, total_amount: 1, status: 1, created_at: 1 }).toArray();
+    res.json({
+      totalOrders, totalProducts, totalMessages,
+      totalRevenue: revenueData[0]?.total || 0,
+      todayOrders,
+      todayRevenue: todayRevenue[0]?.total || 0,
+      recentOrders: recentOrders.map(o => ({
+        id: o._id.toString(),
+        customer: o.customer_name,
+        amount: `Rs ${(o.total_amount || 0).toLocaleString()}`,
+        status: o.status || 'pending',
+        date: new Date(o.created_at).toLocaleDateString()
+      }))
+    });
+  } catch (error) { res.status(500).json({ error: error.message }); }
 });
 
 // ─── ORDERS ───────────────────────────────────────
@@ -263,6 +396,21 @@ app.delete('/api/admin/products/:id', async (req, res) => {
   try {
     const database = await connectDB();
     await database.collection("products").deleteOne({ _id: new ObjectId(req.params.id) });
+    res.json({ success: true });
+  } catch (error) { res.status(500).json({ error: error.message }); }
+});
+
+// ─── PUBLIC CONTACT ────────────────────────────────
+app.post('/api/contact', async (req, res) => {
+  try {
+    const database = await connectDB();
+    const { name, email, subject, message } = req.body;
+    const result = await database.collection("contact_messages").insertOne({
+      name, email, subject, message,
+      status: 'unread',
+      created_at: new Date()
+    });
+    if (!result.acknowledged) throw new Error("Could not submit message.");
     res.json({ success: true });
   } catch (error) { res.status(500).json({ error: error.message }); }
 });
