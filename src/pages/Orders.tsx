@@ -82,10 +82,22 @@ export default function Orders() {
                     <p className="text-xs text-slate-400">Date</p>
                     <p className="font-semibold text-slate-800 text-xs">{selectedOrder.date}</p>
                   </div>
+                  <div>
+                    <p className="text-xs text-slate-400">Email</p>
+                    <p className="font-semibold text-slate-800">{selectedOrder.email || "N/A"}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-slate-400">Postal Code</p>
+                    <p className="font-semibold text-slate-800">{selectedOrder.postalCode || "N/A"}</p>
+                  </div>
                 </div>
                 <div>
                   <p className="text-xs text-slate-400">Address</p>
                   <p className="font-semibold text-slate-800">{selectedOrder.address}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-slate-400">Tracking ID</p>
+                  <p className="font-semibold text-slate-800 font-mono">{selectedOrder.trackingId || "Not assigned"}</p>
                 </div>
               </div>
               <div className="bg-slate-50 rounded-xl p-4">
@@ -150,10 +162,10 @@ export default function Orders() {
                   <td className="p-4 align-top">
                     <select
                       className={`h-8 px-2 text-xs font-bold uppercase tracking-wider rounded-lg border-none focus:ring-2 focus:ring-emerald-500 outline-none cursor-pointer ${order.status === 'delivered' ? 'bg-emerald-100 text-emerald-700' :
-                          order.status === 'shipped' ? 'bg-blue-100 text-blue-700' :
-                            order.status === 'processing' ? 'bg-amber-100 text-amber-700' :
-                              order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                                'bg-slate-100 text-slate-700'
+                        order.status === 'shipped' ? 'bg-blue-100 text-blue-700' :
+                          order.status === 'processing' ? 'bg-amber-100 text-amber-700' :
+                            order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                              'bg-slate-100 text-slate-700'
                         }`}
                       value={order.status}
                       onChange={(e) => handleStatusChange(order.id, e.target.value)}
