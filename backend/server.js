@@ -12,7 +12,8 @@ if (typeof process !== 'undefined' && process.release?.name === 'node') {
 
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 let client = null;
 let dbPromise = null;
