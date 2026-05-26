@@ -204,7 +204,27 @@ export default function Products() {
                     const file = e.target.files?.[0];
                     if (file) {
                       const reader = new FileReader();
-                      reader.onloadend = () => setForm({ ...form, image_url: reader.result as string });
+                      reader.onloadend = () => {
+                        const img = new Image();
+                        img.onload = () => {
+                          const canvas = document.createElement('canvas');
+                          let width = img.width;
+                          let height = img.height;
+                          const MAX_SIZE = 800;
+                          if (width > height) {
+                            if (width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
+                          } else {
+                            if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
+                          }
+                          canvas.width = width; canvas.height = height;
+                          const ctx = canvas.getContext('2d');
+                          if (ctx) {
+                            ctx.drawImage(img, 0, 0, width, height);
+                            setForm({ ...form, image_url: canvas.toDataURL('image/webp', 0.8) });
+                          }
+                        };
+                        img.src = reader.result as string;
+                      };
                       reader.readAsDataURL(file);
                     }
                   }} className="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer" />
