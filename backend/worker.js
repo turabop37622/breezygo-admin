@@ -1,4 +1,4 @@
-﻿import { MongoClient, ObjectId } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
 
 // ─── CORS HEADERS ─────────────────────────────────
 const corsHeaders = {
@@ -7,10 +7,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-function jsonResponse(data, status = 200) {
+function jsonResponse(data, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    headers: { ...corsHeaders, 'Content-Type': 'application/json', ...extraHeaders },
   });
 }
 
@@ -30,15 +30,7 @@ function formatOrder(order) {
   };
 }
 
-async function connectDB(env) {
-  const client = new MongoClient(env.MONGODB_URI, {
-    serverSelectionTimeoutMS: 5000,
-    connectTimeoutMS: 5000,
-    socketTimeoutMS: 5000,
-  });
-  await client.connect();
-  return client.db(env.MONGODB_DB || 'breezygo');
-}
+
 
 async function sendOrderEmail(order, env) {
   try {
@@ -139,16 +131,136 @@ async function sendOrderEmail(order, env) {
 </html>`
       })
     });
-    console.log("Brevo status:", response.status);
+
+    const result = await response.json();
+    console.log("Brevo order email status:", response.status, JSON.stringify(result));
+
+    if (!response.ok) {
+      throw new Error(`Brevo error: ${JSON.stringify(result)}`);
+    }
   } catch (err) {
-    console.error("Email send error:", err);
+    console.error("Order email send error:", err);
+  }
+}
+
+async function sendOrderCustomerEmail(order, env) {
+  if (!order.email) return;
+  try {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "api-key": env.BREVO_API_KEY
+      },
+      body: JSON.stringify({
+        sender: { name: "BreezyGo Store", email: "turabop37622@gmail.com" },
+        to: [{ email: order.email }],
+        subject: `Order Confirmed! #${order.id.slice(-8).toUpperCase()} - BreezyGo`,
+        htmlContent: `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f4f4;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f4;padding:40px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.08);">
+        <tr>
+          <td style="background:linear-gradient(135deg,#10b981,#059669);padding:40px 40px 30px;text-align:center;">
+            <h1 style="margin:0;color:#ffffff;font-size:28px;font-weight:800;">BreezyGo</h1>
+            <p style="margin:8px 0 0;color:rgba(255,255,255,0.85);font-size:14px;">Premium Lifestyle Tech</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#ecfdf5;padding:20px 40px;border-bottom:2px solid #d1fae5;">
+            <p style="margin:0;color:#065f46;font-size:16px;font-weight:700;text-align:center;">🎉 Your Order is Confirmed!</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:40px;">
+            <p style="margin:0 0 24px;color:#374151;font-size:15px;">Hi <strong>${order.customer_name}</strong>, thank you for your order! We have received it and will process it soon.</p>
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;border-radius:12px;padding:20px;margin-bottom:24px;">
+              <tr>
+                <td>
+                  <p style="margin:0 0 4px;color:#6b7280;font-size:12px;font-weight:600;text-transform:uppercase;">Order ID</p>
+                  <p style="margin:0;color:#111827;font-size:16px;font-weight:700;font-family:monospace;">#${order.id.slice(-8).toUpperCase()}</p>
+                </td>
+                <td align="right">
+                  <span style="background:#10b981;color:#fff;padding:6px 16px;border-radius:20px;font-size:12px;font-weight:700;text-transform:uppercase;">CONFIRMED</span>
+                </td>
+              </tr>
+            </table>
+            <h3 style="margin:0 0 16px;color:#111827;font-size:16px;font-weight:700;border-bottom:2px solid #f3f4f6;padding-bottom:12px;">Delivery Details</h3>
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+              <tr>
+                <td width="50%" style="padding:8px 0;">
+                  <p style="margin:0;color:#6b7280;font-size:12px;font-weight:600;text-transform:uppercase;">Name</p>
+                  <p style="margin:4px 0 0;color:#111827;font-size:15px;font-weight:600;">${order.customer_name}</p>
+                </td>
+                <td width="50%" style="padding:8px 0;">
+                  <p style="margin:0;color:#6b7280;font-size:12px;font-weight:600;text-transform:uppercase;">Phone</p>
+                  <p style="margin:4px 0 0;color:#111827;font-size:15px;font-weight:600;">${order.phone}</p>
+                </td>
+              </tr>
+              <tr>
+                <td colspan="2" style="padding:8px 0;">
+                  <p style="margin:0;color:#6b7280;font-size:12px;font-weight:600;text-transform:uppercase;">Delivery Address</p>
+                  <p style="margin:4px 0 0;color:#111827;font-size:15px;font-weight:600;">${order.address}, ${order.city}</p>
+                </td>
+              </tr>
+            </table>
+            <h3 style="margin:0 0 16px;color:#111827;font-size:16px;font-weight:700;border-bottom:2px solid #f3f4f6;padding-bottom:12px;">Order Items</h3>
+            <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;">
+              ${order.items.map(i => `
+              <tr>
+                <td style="padding:12px 0;border-bottom:1px solid #f3f4f6;">
+                  <p style="margin:0;color:#111827;font-size:15px;font-weight:600;">${i.name}</p>
+                  <p style="margin:4px 0 0;color:#6b7280;font-size:13px;">Qty: ${i.quantity} x Rs ${i.price.toLocaleString()}</p>
+                </td>
+                <td align="right" style="padding:12px 0;border-bottom:1px solid #f3f4f6;">
+                  <p style="margin:0;color:#10b981;font-size:15px;font-weight:700;">Rs ${i.line_total.toLocaleString()}</p>
+                </td>
+              </tr>`).join('')}
+            </table>
+            <table width="100%" cellpadding="0" cellspacing="0" style="background:linear-gradient(135deg,#10b981,#059669);border-radius:12px;padding:20px;margin-bottom:24px;">
+              <tr>
+                <td>
+                  <p style="margin:0;color:rgba(255,255,255,0.85);font-size:14px;font-weight:600;">Total Amount (COD)</p>
+                </td>
+                <td align="right">
+                  <p style="margin:0;color:#ffffff;font-size:24px;font-weight:800;">Rs ${order.total_amount.toLocaleString()}</p>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:0;color:#6b7280;font-size:13px;text-align:center;">Payment will be collected at the time of delivery.</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#f9fafb;padding:24px 40px;text-align:center;border-top:1px solid #e5e7eb;">
+            <p style="margin:0;color:#6b7280;font-size:13px;">Thank you for shopping with <strong>BreezyGo Store</strong> 🛍️</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+      })
+    });
+
+    const result = await response.json();
+    console.log("Brevo customer order email status:", response.status, JSON.stringify(result));
+
+    if (!response.ok) {
+      throw new Error(`Brevo customer email error: ${JSON.stringify(result)}`);
+    }
+  } catch (err) {
+    console.error("Customer order email error:", err);
   }
 }
 
 async function sendReviewEmail(order, env) {
   if (!order.email) return;
   try {
-    await fetch("https://api.brevo.com/v3/smtp/email", {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -184,6 +296,13 @@ async function sendReviewEmail(order, env) {
 </html>`
       })
     });
+
+    const result = await response.json();
+    console.log("Brevo review email status:", response.status, JSON.stringify(result));
+
+    if (!response.ok) {
+      throw new Error(`Brevo review email error: ${JSON.stringify(result)}`);
+    }
   } catch (err) {
     console.error("Review email error:", err);
   }
@@ -191,7 +310,7 @@ async function sendReviewEmail(order, env) {
 
 async function sendPromoEmail(email, promoCode, expiresAt, env) {
   try {
-    await fetch("https://api.brevo.com/v3/smtp/email", {
+    const response = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -222,7 +341,7 @@ async function sendPromoEmail(email, promoCode, expiresAt, env) {
             <div style="background:#f0fdf4;border:2px dashed #10b981;border-radius:12px;padding:24px;margin-bottom:24px;">
               <p style="margin:0;font-size:32px;font-weight:900;color:#059669;letter-spacing:4px;font-family:monospace;">${promoCode}</p>
             </div>
-            <p style="color:#6b7280;font-size:13px;">Valid for <strong>24 hours</strong> only — expires ${new Date(expiresAt).toLocaleString('en-PK', { timeZone: 'Asia/Karachi' })}</p>
+            <p style="color:#6b7280;font-size:13px;">Valid for <strong>24 hours</strong> only — expires ${new Date(expiresAt).toLocaleString('en-US')}</p>
             <p style="color:#ef4444;font-size:13px;font-weight:600;">Single use only — expires after first use</p>
             <a href="https://breezygo.com/shop" style="display:inline-block;margin-top:24px;background:linear-gradient(135deg,#10b981,#059669);color:#fff;padding:14px 32px;border-radius:12px;text-decoration:none;font-weight:800;font-size:16px;">Shop Now</a>
           </td>
@@ -239,11 +358,32 @@ async function sendPromoEmail(email, promoCode, expiresAt, env) {
 </html>`
       })
     });
-  } catch (err) { console.error("Promo email error:", err); }
+
+    const result = await response.json();
+    console.log("Brevo promo email status:", response.status, JSON.stringify(result));
+
+    if (!response.ok) {
+      throw new Error(`Brevo promo email error: ${JSON.stringify(result)}`);
+    }
+  } catch (err) {
+    console.error("Promo email error:", err);
+  }
 }
 
 export default {
-  async fetch(request, env) {
+  async fetch(request, env, ctx) {
+    let mongoClient = null;
+
+    async function getDB() {
+      if (!mongoClient) {
+        mongoClient = new MongoClient(env.MONGODB_URI, {
+          serverSelectionTimeoutMS: 5000,
+          connectTimeoutMS: 5000,
+        });
+        await mongoClient.connect();
+      }
+      return mongoClient.db(env.MONGODB_DB || 'breezygo');
+    }
     const url = new URL(request.url);
     const path = url.pathname;
     const method = request.method;
@@ -263,60 +403,84 @@ export default {
         return jsonResponse({ error: "Invalid password" }, 401);
       }
 
+      if (path.startsWith('/api/admin/')) {
+        const authHeader = request.headers.get('Authorization') || request.headers.get('authorization');
+        if (!authHeader || !authHeader.startsWith('Bearer admin-session-')) {
+          return jsonResponse({ error: "Unauthorized access. Missing or invalid token." }, 401);
+        }
+      }
+
       // ─── PUBLIC PRODUCTS ─────────────────────────
       if (path === '/api/products' && method === 'GET') {
-        const db = await connectDB(env);
-        const category = url.searchParams.get('category');
-        const featured = url.searchParams.get('featured');
-        const filter = { is_active: { $ne: false } };
-        if (category) filter.category = category;
-        if (featured === 'true') filter.is_featured = true;
-        const products = await db.collection("products").find(filter).toArray();
-        return jsonResponse(products.map(p => ({
-          id: p._id.toString(),
-          name: p.name,
-          slug: p.slug,
-          price: p.price,
-          original_price: p.original_price || null,
-          category: p.category,
-          tagline: p.tagline || '',
-          image_url: p.image_url || '',
-          rating: p.rating || 4.5,
-          is_featured: p.is_featured || false,
-          stock: p.stock !== undefined ? Number(p.stock) : 100,
-          is_active: p.is_active !== false,
-          details: p.details || [],
-          images: p.images || (p.image_url ? [p.image_url] : [])
-        })));
+        const cacheKey = new Request(url.toString(), request);
+        const cache = caches.default;
+        let response = await cache.match(cacheKey);
+        
+        if (!response) {
+          const db = await getDB();
+          const category = url.searchParams.get('category');
+          const featured = url.searchParams.get('featured');
+          const filter = { is_active: { $ne: false } };
+          if (category) filter.category = category;
+          if (featured === 'true') filter.is_featured = true;
+          const products = await db.collection("products").find(filter).project({ details: 0 }).toArray();
+          response = jsonResponse(products.map(p => ({
+            id: p._id.toString(),
+            name: p.name,
+            slug: p.slug,
+            price: p.price,
+            original_price: p.original_price || null,
+            category: p.category,
+            tagline: p.tagline || '',
+            image_url: p.image_url || '',
+            rating: p.rating || 4.5,
+            is_featured: p.is_featured || false,
+            stock: p.stock !== undefined ? Number(p.stock) : 100,
+            is_active: p.is_active !== false,
+            images: p.images || (p.image_url ? [p.image_url] : [])
+          })), 200, { 'Cache-Control': 'public, max-age=60, s-maxage=60' });
+          
+          ctx.waitUntil(cache.put(cacheKey, response.clone()));
+        }
+        return response;
       }
 
       // ─── PUBLIC SINGLE PRODUCT ───────────────────
       if (path.startsWith('/api/products/') && method === 'GET') {
-        const slug = path.replace('/api/products/', '');
-        const db = await connectDB(env);
-        const product = await db.collection("products").findOne({ slug });
-        if (!product) return jsonResponse({ error: "Product not found" }, 404);
-        return jsonResponse({
-          id: product._id.toString(),
-          name: product.name,
-          slug: product.slug,
-          price: product.price,
-          original_price: product.original_price || null,
-          category: product.category,
-          tagline: product.tagline || '',
-          image_url: product.image_url || '',
-          rating: product.rating || 4.5,
-          is_featured: product.is_featured || false,
-          stock: product.stock !== undefined ? Number(product.stock) : 100,
-          is_active: product.is_active !== false,
-          details: product.details || [],
-          images: product.images || (product.image_url ? [product.image_url] : [])
-        });
+        const cacheKey = new Request(url.toString(), request);
+        const cache = caches.default;
+        let response = await cache.match(cacheKey);
+        
+        if (!response) {
+          const slug = path.replace('/api/products/', '');
+          const db = await getDB();
+          const product = await db.collection("products").findOne({ slug });
+          if (!product) return jsonResponse({ error: "Product not found" }, 404);
+          response = jsonResponse({
+            id: product._id.toString(),
+            name: product.name,
+            slug: product.slug,
+            price: product.price,
+            original_price: product.original_price || null,
+            category: product.category,
+            tagline: product.tagline || '',
+            image_url: product.image_url || '',
+            rating: product.rating || 4.5,
+            is_featured: product.is_featured || false,
+            stock: product.stock !== undefined ? Number(product.stock) : 100,
+            is_active: product.is_active !== false,
+            details: product.details || [],
+            images: product.images || (product.image_url ? [product.image_url] : [])
+          }, 200, { 'Cache-Control': 'public, max-age=60, s-maxage=60' });
+          
+          ctx.waitUntil(cache.put(cacheKey, response.clone()));
+        }
+        return response;
       }
 
       // ─── PUBLIC ORDER SUBMIT ──────────────────────
       if (path === '/api/orders' && method === 'POST') {
-        const db = await connectDB(env);
+        const db = await getDB();
         const body = await request.json();
         const { customer_name, phone, email, city, address, postal_code, notes, discount_code, items } = body;
 
@@ -351,7 +515,7 @@ export default {
         let discount_amount = 0;
         let verified_code = null;
         if (discount_code) {
-          const code = discount_code.toUpperCase().trim();
+          const code = String(discount_code).toUpperCase().trim();
           const promo = await db.collection("promo_codes").findOne({ code });
           if (promo && !promo.used && new Date() < new Date(promo.expires_at)) {
             discount_amount = Math.round(subtotal * (promo.discount_percent / 100));
@@ -375,10 +539,19 @@ export default {
           );
         }
 
+        if (email) {
+          await sendOrderCustomerEmail({
+            id: result.insertedId.toString(),
+            customer_name, phone, city, address,
+            email, items: trustedItems, total_amount
+          }, env);
+        }
+
         await sendOrderEmail({
           id: result.insertedId.toString(),
           customer_name, phone, city, address,
-          items: trustedItems, total_amount
+          items: trustedItems,
+          total_amount
         }, env);
 
         return jsonResponse({ success: true, id: result.insertedId.toString(), total_amount });
@@ -387,7 +560,7 @@ export default {
       // ─── PUBLIC ORDER TRACK ───────────────────────
       if (path.startsWith('/api/orders/track/') && method === 'GET') {
         const query = decodeURIComponent(path.replace('/api/orders/track/', '')).trim();
-        const db = await connectDB(env);
+        const db = await getDB();
 
         if (query.length === 24 && ObjectId.isValid(query)) {
           const order = await db.collection("orders").findOne({ _id: new ObjectId(query) });
@@ -417,7 +590,7 @@ export default {
 
       // ─── PUBLIC SUBSCRIBE ─────────────────────────
       if (path === '/api/subscribe' && method === 'POST') {
-        const db = await connectDB(env);
+        const db = await getDB();
         const { email } = await request.json();
         if (!email || !email.includes('@')) return jsonResponse({ error: 'Valid email required' }, 400);
         const existing = await db.collection("subscribers").findOne({ email: email.toLowerCase() });
@@ -432,7 +605,7 @@ export default {
 
       // ─── VALIDATE PROMO CODE ──────────────────────
       if (path === '/api/promo/validate' && method === 'POST') {
-        const db = await connectDB(env);
+        const db = await getDB();
         const { code } = await request.json();
         if (!code) return jsonResponse({ error: 'Code required' }, 400);
         const promo = await db.collection("promo_codes").findOne({ code: code.toUpperCase().trim() });
@@ -444,7 +617,7 @@ export default {
 
       // ─── ADMIN GET SUBSCRIBERS ────────────────────
       if (path === '/api/admin/subscribers' && method === 'GET') {
-        const db = await connectDB(env);
+        const db = await getDB();
         const subscribers = await db.collection("subscribers").find().sort({ created_at: -1 }).toArray();
         return jsonResponse(subscribers.map(s => ({
           id: s._id.toString(),
@@ -459,7 +632,7 @@ export default {
       if (path === '/api/admin/subscribers/approve' && method === 'POST') {
         const { id } = await request.json();
         if (!id || !ObjectId.isValid(id)) return jsonResponse({ error: 'Invalid ID' }, 400);
-        const db = await connectDB(env);
+        const db = await getDB();
         const subscriber = await db.collection("subscribers").findOne({ _id: new ObjectId(id) });
         if (!subscriber) return jsonResponse({ error: 'Subscriber not found' }, 404);
         if (subscriber.status === 'approved') return jsonResponse({ error: 'Already approved' }, 400);
@@ -483,7 +656,7 @@ export default {
 
       // ─── ADMIN STATS ──────────────────────────────
       if (path === '/api/admin/stats' && method === 'GET') {
-        const db = await connectDB(env);
+        const db = await getDB();
         const todayStart = new Date(); todayStart.setHours(0, 0, 0, 0);
         const [totalOrders, totalProducts, totalMessages, revenueData, todayOrders, todayRevenue] = await Promise.all([
           db.collection("orders").countDocuments(),
@@ -511,7 +684,7 @@ export default {
 
       // ─── ADMIN ORDERS GET ─────────────────────────
       if (path === '/api/admin/orders' && method === 'GET') {
-        const db = await connectDB(env);
+        const db = await getDB();
         const orders = await db.collection("orders").find().sort({ created_at: -1 }).toArray();
         return jsonResponse(orders.map(o => ({
           id: o._id.toString(),
@@ -531,7 +704,7 @@ export default {
 
       // ─── ADMIN ORDERS UPDATE ──────────────────────
       if (path === '/api/admin/orders' && method === 'POST') {
-        const db = await connectDB(env);
+        const db = await getDB();
         const { id, status } = await request.json();
         if (!id || !ObjectId.isValid(id)) return jsonResponse({ error: "Invalid order ID" }, 400);
         await db.collection("orders").updateOne(
@@ -549,7 +722,7 @@ export default {
 
       // ─── ADMIN ORDERS DELETE ALL ──────────────────
       if (path === '/api/admin/orders' && method === 'DELETE') {
-        const db = await connectDB(env);
+        const db = await getDB();
         await db.collection("orders").deleteMany({});
         return jsonResponse({ success: true });
       }
@@ -558,14 +731,14 @@ export default {
       if (path.startsWith('/api/admin/orders/') && method === 'DELETE') {
         const id = path.replace('/api/admin/orders/', '');
         if (!ObjectId.isValid(id)) return jsonResponse({ error: "Invalid order ID" }, 400);
-        const db = await connectDB(env);
+        const db = await getDB();
         await db.collection("orders").deleteOne({ _id: new ObjectId(id) });
         return jsonResponse({ success: true });
       }
 
       // ─── ADMIN PRODUCTS GET ───────────────────────
       if (path === '/api/admin/products' && method === 'GET') {
-        const db = await connectDB(env);
+        const db = await getDB();
         const products = await db.collection("products").find().sort({ created_at: -1 }).toArray();
         return jsonResponse(products.map(p => ({
           id: p._id.toString(),
@@ -585,7 +758,7 @@ export default {
 
       // ─── ADMIN PRODUCTS ADD ───────────────────────
       if (path === '/api/admin/products' && method === 'POST') {
-        const db = await connectDB(env);
+        const db = await getDB();
         const { name, slug, price, original_price, category, tagline, image_url, stock, details, images } = await request.json();
         const result = await db.collection("products").insertOne({
           name, slug: slug || name.toLowerCase().replace(/\s+/g, '-'),
@@ -602,7 +775,7 @@ export default {
       if (path.startsWith('/api/admin/products/') && method === 'PUT') {
         const id = path.replace('/api/admin/products/', '');
         if (!ObjectId.isValid(id)) return jsonResponse({ error: "Invalid product ID" }, 400);
-        const db = await connectDB(env);
+        const db = await getDB();
         const { name, slug, price, original_price, category, tagline, image_url, stock, is_active, details, images } = await request.json();
         const updateDoc = {
           name, price: Number(price),
@@ -624,14 +797,14 @@ export default {
       if (path.startsWith('/api/admin/products/') && method === 'DELETE') {
         const id = path.replace('/api/admin/products/', '');
         if (!ObjectId.isValid(id)) return jsonResponse({ error: "Invalid product ID" }, 400);
-        const db = await connectDB(env);
+        const db = await getDB();
         await db.collection("products").deleteOne({ _id: new ObjectId(id) });
         return jsonResponse({ success: true });
       }
 
       // ─── PUBLIC CONTACT ───────────────────────────
       if (path === '/api/contact' && method === 'POST') {
-        const db = await connectDB(env);
+        const db = await getDB();
         const { name, email, subject, message } = await request.json();
         const result = await db.collection("contact_messages").insertOne({
           name, email, subject, message,
@@ -643,7 +816,7 @@ export default {
 
       // ─── ADMIN MESSAGES GET ───────────────────────
       if (path === '/api/admin/messages' && method === 'GET') {
-        const db = await connectDB(env);
+        const db = await getDB();
         const messages = await db.collection("contact_messages").find().sort({ created_at: -1 }).toArray();
         return jsonResponse(messages.map(m => ({
           id: m._id.toString(), name: m.name, email: m.email,
@@ -657,7 +830,7 @@ export default {
       if (path === '/api/admin/messages' && method === 'POST') {
         const { id } = await request.json();
         if (!id || !ObjectId.isValid(id)) return jsonResponse({ error: "Invalid message ID" }, 400);
-        const db = await connectDB(env);
+        const db = await getDB();
         await db.collection("contact_messages").updateOne(
           { _id: new ObjectId(id) }, { $set: { status: 'read', updated_at: new Date() } }
         );
@@ -668,7 +841,7 @@ export default {
       if (path.startsWith('/api/admin/messages/') && method === 'DELETE') {
         const id = path.replace('/api/admin/messages/', '');
         if (!ObjectId.isValid(id)) return jsonResponse({ error: "Invalid message ID" }, 400);
-        const db = await connectDB(env);
+        const db = await getDB();
         await db.collection("contact_messages").deleteOne({ _id: new ObjectId(id) });
         return jsonResponse({ success: true });
       }
@@ -678,6 +851,10 @@ export default {
     } catch (error) {
       console.error("Worker error:", error);
       return jsonResponse({ error: error.message }, 500);
+    } finally {
+      if (mongoClient) {
+        ctx.waitUntil(mongoClient.close().catch(console.error));
+      }
     }
   }
 };
