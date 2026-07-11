@@ -46,7 +46,7 @@ export default function Subscribers() {
                     <h1 className="text-2xl lg:text-3xl font-bold text-slate-900">
                         Subscribers ({subscribers.length})
                     </h1>
-                    <p className="text-slate-500 mt-1">Approve to send 20% OFF promo code.</p>
+                    <p className="text-slate-500 mt-1">Approve to send 5% OFF promo code.</p>
                 </div>
                 <div className="relative w-full sm:w-72">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
